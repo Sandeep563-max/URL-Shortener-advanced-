@@ -12,11 +12,13 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "bullmq": "^5.79.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "mongoose": "^9.7.3",
-    "nanoid": "^5.1.16"
+    "nanoid": "^5.1.16",
+    "redis": "^6.1.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
