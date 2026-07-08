@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # 1. The Redis Cache
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  # 2. The Main Backend API
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend/.env # Pulls your MongoDB URI safely
+    environment:
+      - REDIS_HOST=redis # This tells Node to talk to the container above
+      - BASE_URL=http://localhost:5000
+    depends_on:
+      - redis
+
+  # 3. The Background Worker
+  worker:
+    build: ./backend
+    command: node worker.js # Overrides the default server.js command
+    env_file:
+      - ./backend/.env
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+      - backend
+
+  # 4. The React Frontend
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:5000
+    depends_on:
+      - backend

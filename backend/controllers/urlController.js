@@ -4,7 +4,10 @@ import { redisClient } from "../config/redis.js";
 import { Queue } from "bullmq";
 
 const analyticsQueue = new Queue("analyticsQueue", {
-  connection: { host: "127.0.0.1", port: 6379 }
+  connection: { 
+    host: process.env.REDIS_HOST || "127.0.0.1", 
+    port: 6379 
+  }
 });
 
 // POST: Generate Short URL
@@ -34,7 +37,7 @@ export const redirectToOriginalUrl = async (req, res) => {
     // Cache Check
     const cachedUrl = await redisClient.get(shortId);
     if (cachedUrl) {
-      analyticsQueue.add("trackClick", { shortId });
+      analyticsQueue.add("trackClick", { shortId }).catch(err => console.error("Queue Error:", err));
       return res.redirect(cachedUrl);
     }
 
@@ -43,7 +46,7 @@ export const redirectToOriginalUrl = async (req, res) => {
     if (!url) return res.status(404).json({ error: "Not found" });
 
     await redisClient.set(shortId, url.originalUrl, { EX: 86400 });
-    analyticsQueue.add("trackClick", { shortId });
+    analyticsQueue.add("trackClick", { shortId }).catch(err => console.error("Queue Error:", err));
     return res.redirect(url.originalUrl);
   } catch (error) {
     res.status(500).json({ error: "Server error" });

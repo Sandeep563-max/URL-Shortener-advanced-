@@ -1,47 +1,39 @@
 import { Worker } from "bullmq";
-import connectDB from "./config/db.js";
-import Url from "./models/Url.js";
+import mongoose from "mongoose";
 import dotenv from "dotenv";
+import Url from "./models/Url.js";
 
 dotenv.config();
 
-// 1. Connect to MongoDB 
-// (The worker is a separate process, so it needs its own database connection!)
-connectDB();
+// The worker needs its own MongoDB connection
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("Worker connected to MongoDB"))
+  .catch((err) => console.error("Worker MongoDB error", err));
 
-// 2. Create the Worker
-// It continuously listens to the "analyticsQueue" on your local Redis
 const analyticsWorker = new Worker("analyticsQueue", async (job) => {
-  // This function triggers the millisecond a new job drops into the queue
   const { shortId } = job.data;
   
-  console.log(`\n👷 Picked up click event for: ${shortId}`);
-
   try {
-    // Perform the slow database update here, safely away from the user
     await Url.findOneAndUpdate(
       { shortId },
       { $inc: { clicks: 1 } }
     );
-    console.log(`✅ Successfully updated MongoDB clicks for ${shortId}`);
+    console.log(`Processed click for ${shortId}`);
   } catch (error) {
-    console.error(`❌ Failed to update clicks for ${shortId}:`, error);
-    throw error; // Throwing an error tells BullMQ to retry the job later
+    console.error(`Failed to update click for ${shortId}`, error);
+    throw error; // Throwing the error tells BullMQ to retry the job later
   }
 }, {
-  connection: {
-    host: "127.0.0.1",
-    port: 6379
+  connection: { 
+    host: process.env.REDIS_HOST || "127.0.0.1", 
+    port: 6379 
   }
 });
 
-// 3. Optional: Event listeners for easier debugging
-analyticsWorker.on("completed", (job) => {
-  console.log(`🎉 Job ${job.id} finished processing.`);
+analyticsWorker.on("ready", () => {
+  console.log("Analytics Worker is running and listening to Redis...");
 });
 
 analyticsWorker.on("failed", (job, err) => {
-  console.error(`🚨 Job ${job.id} failed: ${err.message}`);
+  console.error(`Job ${job.id} failed with error ${err.message}`);
 });
-
-console.log("🟢 Analytics Worker is running and listening to Redis...");
