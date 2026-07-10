@@ -4,6 +4,8 @@ import connectDB from "./config/db.js";
 import { connectRedis } from "./config/redis.js"; // <-- Redis connection imported
 import cors from "cors";
 import urlRoutes from "./routes/url.js";
+import cookieParser from 'cookie-parser';
+import authRoutes from './routes/authRoutes.js';
 
 dotenv.config();
 
@@ -14,11 +16,14 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: process.env.FRONTEND_URL,
   methods: ["GET", "POST"],
+  credentials: true, 
 }));
 app.use(express.json());
+app.use(cookieParser());
 
 // Routes
 app.use("/", urlRoutes);
+app.use('/api/auth', authRoutes);
 
 const startServer = async () => {
   try {

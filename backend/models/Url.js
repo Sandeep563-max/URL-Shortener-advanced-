@@ -5,7 +5,7 @@ const UrlSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  shortId: {      // <-- This is the new field that was missing!
+  shortId: {
     type: String,
     required: true,
     unique: true,
@@ -18,6 +18,12 @@ const UrlSchema = new mongoose.Schema({
   clicks: {
     type: Number, 
     default: 0
+  },
+  // --- NEW FIELD ADDED HERE ---
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null, 
   },
 }, { timestamps: true });
 

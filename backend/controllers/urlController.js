@@ -11,24 +11,35 @@ const analyticsQueue = new Queue("analyticsQueue", {
 });
 
 // POST: Generate Short URL
+
 export const createShortUrl = async (req, res) => {
   try {
     const { originalUrl } = req.body;
     if (!originalUrl) return res.status(400).json({ error: "URL required" });
 
-    const existingUrl = await Url.findOne({ originalUrl });
+    // 1. Grab the user ID if the optionalAuth middleware found a logged-in user
+    const userId = req.user ? req.user._id : null;
+
+    // 2. Check if THIS specific user (or guest) already shortened this exact URL
+    const existingUrl = await Url.findOne({ originalUrl, user: userId });
     if (existingUrl) return res.status(200).json(existingUrl);
 
     const shortId = nanoid(7);
     const shortUrl = `${process.env.BASE_URL || "http://localhost:5000"}/${shortId}`;
 
-    const url = await Url.create({ originalUrl, shortId, shortUrl });
+    // 3. Save the link with the user ID attached
+    const url = await Url.create({ 
+      originalUrl, 
+      shortId, 
+      shortUrl,
+      user: userId // <-- This is the magic connection!
+    });
+    
     return res.status(201).json(url);
   } catch (error) {
     res.status(500).json({ error: "Server error" });
   }
 };
-
 // GET: Redirect with Redis caching and async analytics
 export const redirectToOriginalUrl = async (req, res) => {
   try {
@@ -65,6 +76,19 @@ export const getUrlAnalytics = async (req, res) => {
       shortUrl: url.shortUrl,
       clicks: url.clicks,
     });
+  } catch (error) {
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// GET: Fetch all URLs for the logged-in user
+export const getUserUrls = async (req, res) => {
+  try {
+    // Find URLs where the user ID matches the logged-in user
+    // .sort({ createdAt: -1 }) puts the newest links at the top!
+    const urls = await Url.find({ user: req.user._id }).sort({ createdAt: -1 });
+    
+    res.status(200).json(urls);
   } catch (error) {
     res.status(500).json({ error: "Server error" });
   }

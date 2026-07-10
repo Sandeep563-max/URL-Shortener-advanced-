@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import axios from "axios";
 import QRCode from "react-qr-code";
 import QRCodeGenerator from "qrcode";
+import { AuthContext } from "../context/AuthContext"; 
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 function Home() {
   const [url, setUrl] = useState("");
@@ -11,15 +12,27 @@ function Home() {
   const [copied, setCopied] = useState(false);
   const [qrImage, setQrImage] = useState("");
   const [analytics, setAnalytics] = useState(null);
-  
-  // NEW STATE: To hold our local history
   const [history, setHistory] = useState([]);
 
-  // NEW EFFECT: Load history from LocalStorage when the app starts
+  const { user, logout } = useContext(AuthContext);
+
+  // HYBRID LOGIC: Fetch from DB if logged in, else use LocalStorage
   useEffect(() => {
-    const savedHistory = JSON.parse(localStorage.getItem("urlHistory") || "[]");
-    setHistory(savedHistory);
-  }, []);
+    const fetchHistory = async () => {
+      if (user) {
+        try {
+          const res = await axios.get(`${API_BASE_URL}/my-links`);
+          setHistory(res.data);
+        } catch (error) {
+          console.error("Failed to fetch user links", error);
+        }
+      } else {
+        const savedHistory = JSON.parse(localStorage.getItem("guestUrlHistory") || "[]");
+        setHistory(savedHistory);
+      }
+    };
+    fetchHistory();
+  }, [user]); // Re-runs instantly when a user logs in or out
 
   const handleShorten = async () => {
     if (!url) return;
@@ -37,15 +50,21 @@ function Home() {
       const qr = await QRCodeGenerator.toDataURL(shortUrl);
       setQrImage(qr);
 
-      // NEW LOGIC: Update History (Keep only the last 5, and prevent duplicates)
+      // HYBRID LOGIC: Update State
       const newHistoryItem = { originalUrl: originalUrl || url, shortUrl, shortId };
-      const updatedHistory = [
-        newHistoryItem, 
-        ...history.filter(item => item.shortId !== shortId) // Remove if it already exists
-      ].slice(0, 5); // Keep only top 5
-
-      setHistory(updatedHistory);
-      localStorage.setItem("urlHistory", JSON.stringify(updatedHistory));
+      
+      if (user) {
+        // If logged in, just add to the top of the list (DB handles permanence)
+        setHistory(prev => [newHistoryItem, ...prev]);
+      } else {
+        // If guest, manage the LocalStorage array (keep top 5)
+        const updatedHistory = [
+          newHistoryItem, 
+          ...history.filter(item => item.shortId !== shortId) 
+        ].slice(0, 5); 
+        setHistory(updatedHistory);
+        localStorage.setItem("guestUrlHistory", JSON.stringify(updatedHistory));
+      }
     
     } catch (error) {
       console.error(error);
@@ -55,14 +74,26 @@ function Home() {
 
   const handleCopy = (linkToCopy) => {
     navigator.clipboard.writeText(linkToCopy);
-    // If copying from history, we might not want to trigger the main 'copied' state, 
-    // but for simplicity, we will use the same state here.
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   return (
     <div className="min-h-screen flex flex-col items-center py-10 px-6 gap-6 bg-base-200">
+      
+      {/* USER DASHBOARD HEADER */}
+      <div className="w-full max-w-3xl flex justify-between items-center bg-base-100 p-4 rounded-xl shadow-sm mb-4">
+        <div>
+          <span className="text-gray-500 font-medium">Status: </span>
+          <span className="text-primary font-bold">{user ? user.email : "Guest"}</span>
+        </div>
+        {user && (
+          <button onClick={logout} className="btn btn-sm btn-outline btn-error">
+            Logout
+          </button>
+        )}
+      </div>
+
       <h1 className="text-4xl font-bold mb-4 text-center">URL SHORTENER</h1>
       
       <div className="flex flex-col gap-3 w-full max-w-3xl bg-base-100 p-6 rounded-xl shadow-lg">
@@ -91,7 +122,7 @@ function Home() {
             )}
 
             <p className="font-medium mb-2">Your short link:</p>
-            <a className="link link-primary break-all text-lg" target="_blank" href={shortUrl}> {shortUrl} </a>
+            <a className="link link-primary break-all text-lg" target="_blank" href={shortUrl} rel="noreferrer"> {shortUrl} </a>
             <button onClick={() => handleCopy(shortUrl)} className={`btn mt-4 w-full ${copied ? "btn-success" : "btn-secondary"}`}>
                 {copied ? "Copied!" : "Copy Link"}
             </button>
@@ -109,16 +140,15 @@ function Home() {
         </div>
       )}
 
-      {/* NEW: Recent History Section */}
       {history.length > 0 && (
         <div className="w-full max-w-3xl mt-8">
-          <h2 className="text-2xl font-bold mb-4">Recent Links</h2>
+          <h2 className="text-2xl font-bold mb-4">{user ? "Your Permanent History" : "Recent Links (Guest)"}</h2>
           <div className="flex flex-col gap-3">
             {history.map((item, index) => (
               <div key={index} className="bg-base-100 p-4 rounded-lg shadow flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="overflow-hidden w-full">
                   <p className="text-sm text-gray-500 truncate">{item.originalUrl}</p>
-                  <a href={item.shortUrl} target="_blank" className="link link-primary font-medium">{item.shortUrl}</a>
+                  <a href={item.shortUrl} target="_blank" className="link link-primary font-medium" rel="noreferrer">{item.shortUrl}</a>
                 </div>
                 <button onClick={() => handleCopy(item.shortUrl)} className="btn btn-sm btn-ghost border border-base-300">
                   Copy
