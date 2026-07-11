@@ -19,11 +19,19 @@ const UrlSchema = new mongoose.Schema({
     type: Number, 
     default: 0
   },
-  // --- NEW FIELD ADDED HERE ---
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     default: null, 
+  },
+  
+  // --- NEW FIELD FOR PREMIUM FEATURE ---
+  customAlias: {
+    type: String,
+    unique: true,
+    sparse: true, // Tells MongoDB: "Only enforce uniqueness if this field actually exists."
+    trim: true,   // Automatically removes accidental spaces at the beginning or end.
+    match: [/^[a-zA-Z0-9-_]+$/, 'Alias can only contain letters, numbers, hyphens, and underscores'] // Prevents invalid URL characters like spaces or emojis.
   },
 }, { timestamps: true });
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom"; // --- NEW: Needed for the Login button ---
 import axios from "axios";
 import QRCode from "react-qr-code";
 import QRCodeGenerator from "qrcode";
@@ -8,6 +9,9 @@ const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000"
 
 function Home() {
   const [url, setUrl] = useState("");
+  const [customAlias, setCustomAlias] = useState(""); // --- NEW: State for alias ---
+  const [error, setError] = useState(null); // --- NEW: State for backend errors ---
+  
   const [shortUrl, setShortUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const [qrImage, setQrImage] = useState("");
@@ -15,6 +19,7 @@ function Home() {
   const [history, setHistory] = useState([]);
 
   const { user, logout } = useContext(AuthContext);
+  const navigate = useNavigate(); // --- NEW: Initialize navigation ---
 
   // HYBRID LOGIC: Fetch from DB if logged in, else use LocalStorage
   useEffect(() => {
@@ -32,17 +37,24 @@ function Home() {
       }
     };
     fetchHistory();
-  }, [user]); // Re-runs instantly when a user logs in or out
+  }, [user]); 
 
   const handleShorten = async () => {
     if (!url) return;
+    setError(null); // --- NEW: Clear previous errors on new submission ---
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/shorten`, { originalUrl: url });
+      // --- NEW: Send customAlias if it exists ---
+      const res = await axios.post(`${API_BASE_URL}/shorten`, { 
+        originalUrl: url,
+        customAlias: customAlias.trim() !== "" ? customAlias : undefined
+      });
+      
       const { shortUrl, shortId, originalUrl } = res.data; 
       
       setShortUrl(shortUrl);
       setCopied(false);
+      setCustomAlias(""); // --- NEW: Clear alias input on success ---
 
       const stats = await axios.get(`${API_BASE_URL}/analytics/${shortId}`);
       setAnalytics(stats.data);
@@ -54,10 +66,8 @@ function Home() {
       const newHistoryItem = { originalUrl: originalUrl || url, shortUrl, shortId };
       
       if (user) {
-        // If logged in, just add to the top of the list (DB handles permanence)
         setHistory(prev => [newHistoryItem, ...prev]);
       } else {
-        // If guest, manage the LocalStorage array (keep top 5)
         const updatedHistory = [
           newHistoryItem, 
           ...history.filter(item => item.shortId !== shortId) 
@@ -66,9 +76,13 @@ function Home() {
         localStorage.setItem("guestUrlHistory", JSON.stringify(updatedHistory));
       }
     
-    } catch (error) {
-      console.error(error);
-      alert("Something went wrong");
+    } catch (err) {
+      // --- NEW: Handle specific "Alias Taken" errors from backend ---
+      if (err.response && err.response.data && err.response.data.error) {
+        setError(err.response.data.error);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     }
   }
 
@@ -87,15 +101,22 @@ function Home() {
           <span className="text-gray-500 font-medium">Status: </span>
           <span className="text-primary font-bold">{user ? user.email : "Guest"}</span>
         </div>
-        {user && (
+        
+        {/* --- NEW: Interactive Login/Logout Button Logic --- */}
+        {user ? (
           <button onClick={logout} className="btn btn-sm btn-outline btn-error">
             Logout
+          </button>
+        ) : (
+          <button onClick={() => navigate('/auth')} className="btn btn-sm btn-outline btn-primary">
+            Login / Sign Up
           </button>
         )}
       </div>
 
       <h1 className="text-4xl font-bold mb-4 text-center">URL SHORTENER</h1>
       
+      {/* MAIN INPUT SECTION */}
       <div className="flex flex-col gap-3 w-full max-w-3xl bg-base-100 p-6 rounded-xl shadow-lg">
         <input 
           type="text" 
@@ -104,11 +125,29 @@ function Home() {
           value={url} 
           onChange={(e) => setUrl(e.target.value)} 
         />
-        <button onClick={handleShorten} className="btn btn-primary w-full"> 
+
+        {/* --- NEW: Custom Alias Input (Premium Gated) --- */}
+        <div className="relative w-full flex items-center">
+          <span className="absolute left-3 text-gray-400 font-mono">/</span>
+          <input
+            type="text"
+            className="input input-bordered w-full pl-7"
+            placeholder={user ? "custom-alias (optional)" : "Login to use custom aliases"}
+            value={customAlias}
+            onChange={(e) => setCustomAlias(e.target.value)}
+            disabled={!user} // Locks the input for guests!
+          />
+        </div>
+
+        {/* --- NEW: Error Display --- */}
+        {error && <p className="text-red-500 text-sm font-medium px-1">{error}</p>}
+
+        <button onClick={handleShorten} className="btn btn-primary w-full mt-2"> 
           Shorten
         </button>
       </div>
 
+      {/* --- REMAINDER OF YOUR CODE (RESULTS & HISTORY) STAYS EXACTLY THE SAME --- */}
       {shortUrl && (
         <div className="flex flex-col items-center max-w-3xl w-full bg-base-100 p-6 rounded-xl shadow-lg">
             {analytics && (
