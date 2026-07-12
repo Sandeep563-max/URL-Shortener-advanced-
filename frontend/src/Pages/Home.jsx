@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from "react";
-import { useNavigate } from "react-router-dom"; // --- NEW: Needed for the Login button ---
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import QRCode from "react-qr-code";
 import QRCodeGenerator from "qrcode";
@@ -9,8 +9,8 @@ const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000"
 
 function Home() {
   const [url, setUrl] = useState("");
-  const [customAlias, setCustomAlias] = useState(""); // --- NEW: State for alias ---
-  const [error, setError] = useState(null); // --- NEW: State for backend errors ---
+  const [customAlias, setCustomAlias] = useState(""); 
+  const [error, setError] = useState(null); 
   
   const [shortUrl, setShortUrl] = useState("");
   const [copied, setCopied] = useState(false);
@@ -19,14 +19,19 @@ function Home() {
   const [history, setHistory] = useState([]);
 
   const { user, logout } = useContext(AuthContext);
-  const navigate = useNavigate(); // --- NEW: Initialize navigation ---
+  const navigate = useNavigate(); 
 
   // HYBRID LOGIC: Fetch from DB if logged in, else use LocalStorage
   useEffect(() => {
     const fetchHistory = async () => {
       if (user) {
         try {
-          const res = await axios.get(`${API_BASE_URL}/my-links`);
+          // --- THE SECURE COOKIE FIX ---
+          const config = {
+            withCredentials: true
+          };
+          
+          const res = await axios.get(`${API_BASE_URL}/my-links`, config);
           setHistory(res.data);
         } catch (error) {
           console.error("Failed to fetch user links", error);
@@ -41,20 +46,24 @@ function Home() {
 
   const handleShorten = async () => {
     if (!url) return;
-    setError(null); // --- NEW: Clear previous errors on new submission ---
+    setError(null); 
 
     try {
-      // --- NEW: Send customAlias if it exists ---
+      // --- THE SECURE COOKIE FIX ---
+      const config = user ? {
+        withCredentials: true
+      } : {};
+
       const res = await axios.post(`${API_BASE_URL}/shorten`, { 
         originalUrl: url,
         customAlias: customAlias.trim() !== "" ? customAlias : undefined
-      });
+      }, config);
       
       const { shortUrl, shortId, originalUrl } = res.data; 
       
       setShortUrl(shortUrl);
       setCopied(false);
-      setCustomAlias(""); // --- NEW: Clear alias input on success ---
+      setCustomAlias(""); 
 
       const stats = await axios.get(`${API_BASE_URL}/analytics/${shortId}`);
       setAnalytics(stats.data);
@@ -77,7 +86,6 @@ function Home() {
       }
     
     } catch (err) {
-      // --- NEW: Handle specific "Alias Taken" errors from backend ---
       if (err.response && err.response.data && err.response.data.error) {
         setError(err.response.data.error);
       } else {
@@ -102,7 +110,6 @@ function Home() {
           <span className="text-primary font-bold">{user ? user.email : "Guest"}</span>
         </div>
         
-        {/* --- NEW: Interactive Login/Logout Button Logic --- */}
         {user ? (
           <button onClick={logout} className="btn btn-sm btn-outline btn-error">
             Logout
@@ -126,7 +133,6 @@ function Home() {
           onChange={(e) => setUrl(e.target.value)} 
         />
 
-        {/* --- NEW: Custom Alias Input (Premium Gated) --- */}
         <div className="relative w-full flex items-center">
           <span className="absolute left-3 text-gray-400 font-mono">/</span>
           <input
@@ -135,11 +141,10 @@ function Home() {
             placeholder={user ? "custom-alias (optional)" : "Login to use custom aliases"}
             value={customAlias}
             onChange={(e) => setCustomAlias(e.target.value)}
-            disabled={!user} // Locks the input for guests!
+            disabled={!user} 
           />
         </div>
 
-        {/* --- NEW: Error Display --- */}
         {error && <p className="text-red-500 text-sm font-medium px-1">{error}</p>}
 
         <button onClick={handleShorten} className="btn btn-primary w-full mt-2"> 
@@ -147,7 +152,6 @@ function Home() {
         </button>
       </div>
 
-      {/* --- REMAINDER OF YOUR CODE (RESULTS & HISTORY) STAYS EXACTLY THE SAME --- */}
       {shortUrl && (
         <div className="flex flex-col items-center max-w-3xl w-full bg-base-100 p-6 rounded-xl shadow-lg">
             {analytics && (

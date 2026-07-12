@@ -13,19 +13,17 @@ const analyticsQueue = new Queue("analyticsQueue", {
 // POST: Generate Short URL
 export const createShortUrl = async (req, res) => {
   try {
-    // --- NEW: Destructure customAlias from the request body ---
     const { originalUrl, customAlias } = req.body;
     if (!originalUrl) return res.status(400).json({ error: "URL required" });
 
     const userId = req.user ? req.user._id : null;
 
-    // --- NEW: Premium Feature Gatekeeper ---
-    // If a guest tries to use a custom alias, reject them immediately.
+    // Premium Feature Gatekeeper
     if (customAlias && !userId) {
       return res.status(401).json({ error: "You must be logged in to create a custom alias." });
     }
 
-    // --- NEW: Alias Availability Check ---
+    // Alias Availability Check
     if (customAlias) {
       const existingAlias = await Url.findOne({ customAlias });
       if (existingAlias) {
@@ -33,16 +31,13 @@ export const createShortUrl = async (req, res) => {
       }
     }
 
-    // Only check for an existing standard URL if they ARE NOT trying to make a custom one.
-    // (If they are making a custom one, we want to let them, even if they shortened this link before).
+    // Anti-Spam: Return existing standard URL if not using a custom alias
     if (!customAlias) {
       const existingUrl = await Url.findOne({ originalUrl, user: userId });
       if (existingUrl) return res.status(200).json(existingUrl);
     }
 
     const shortId = nanoid(7);
-    
-    // --- NEW: Use the customAlias in the final URL if it exists, otherwise use the random shortId ---
     const finalIdentifier = customAlias ? customAlias : shortId;
     const shortUrl = `${process.env.BASE_URL || "http://localhost:5000"}/${finalIdentifier}`;
 
@@ -50,8 +45,9 @@ export const createShortUrl = async (req, res) => {
       originalUrl, 
       shortId, 
       shortUrl,
-      customAlias: customAlias || null, // --- NEW: Save the alias to the database ---
-      user: userId 
+      // --- THE MONGO SPARSE INDEX FIX ---
+      customAlias: customAlias || undefined, 
+      user: userId
     });
     
     return res.status(201).json(url);
@@ -63,32 +59,47 @@ export const createShortUrl = async (req, res) => {
 // GET: Redirect with Redis caching and async analytics
 export const redirectToOriginalUrl = async (req, res) => {
   try {
-    const { shortId } = req.params; // Note: This could now be a nanoid OR a custom alias!
+    const { shortId } = req.params; 
     
-    // Cache Check
-    const cachedUrl = await redisClient.get(shortId);
-    if (cachedUrl) {
-      analyticsQueue.add("trackClick", { shortId }).catch(err => console.error("Queue Error:", err));
-      return res.redirect(cachedUrl);
+    // 1. Cache Check
+    const cachedData = await redisClient.get(shortId);
+    if (cachedData) {
+      try {
+        // --- THE REDIS JSON CACHING FIX ---
+        const parsedCache = JSON.parse(cachedData);
+        analyticsQueue.add("trackClick", { shortId: parsedCache.trueId }).catch(err => console.error("Queue Error:", err));
+        return res.redirect(parsedCache.originalUrl);
+      } catch (e) {
+        analyticsQueue.add("trackClick", { shortId }).catch(err => console.error("Queue Error:", err));
+        return res.redirect(cachedData);
+      }
     }
 
-    // --- NEW: DB Fallback - Search by shortId OR customAlias ---
+    // 2. DB Fallback
     const url = await Url.findOne({ 
       $or: [ { shortId: shortId }, { customAlias: shortId } ] 
     });
     
     if (!url) return res.status(404).json({ error: "Not found" });
 
-    await redisClient.set(shortId, url.originalUrl, { EX: 86400 });
-    // We pass the actual shortId to the queue so analytics attach to the right database document
+    // Store both the URL and the true shortId together in Redis as a JSON string
+    const cachePayload = JSON.stringify({ 
+      originalUrl: url.originalUrl, 
+      trueId: url.shortId 
+    });
+    
+    await redisClient.set(shortId, cachePayload, { EX: 86400 });
+    
+    // 3. Send the true ID to the worker
     analyticsQueue.add("trackClick", { shortId: url.shortId }).catch(err => console.error("Queue Error:", err));
     return res.redirect(url.originalUrl);
+    
   } catch (error) {
     res.status(500).json({ error: "Server error" });
   }
 };
 
-// GET: Fetch URL Analytics (Remains exactly the same)
+// GET: Fetch URL Analytics 
 export const getUrlAnalytics = async (req, res) => {
   try {
     const { shortId } = req.params;
@@ -105,7 +116,7 @@ export const getUrlAnalytics = async (req, res) => {
   }
 };
 
-// GET: Fetch all URLs for the logged-in user (Remains exactly the same)
+// GET: Fetch all URLs for the logged-in user 
 export const getUserUrls = async (req, res) => {
   try {
     const urls = await Url.find({ user: req.user._id }).sort({ createdAt: -1 });
