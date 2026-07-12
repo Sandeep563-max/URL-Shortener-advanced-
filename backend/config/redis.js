@@ -1,10 +1,12 @@
 import { createClient } from "redis";
 
-// Create the client with the dynamic host
+// Create the client with dynamic host, password, and TLS encryption
 export const redisClient = createClient({
+  password: process.env.REDIS_PASSWORD, // Added this line
   socket: {
     host: process.env.REDIS_HOST || "127.0.0.1",
-    port: 6379
+    port: process.env.REDIS_PORT || 6379,
+    tls: process.env.NODE_ENV === "production" // Added this line: Turns on encryption ONLY in production
   }
 });
 
