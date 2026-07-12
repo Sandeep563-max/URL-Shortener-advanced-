@@ -21,10 +21,8 @@ const Auth = () => {
       } else {
         await register(email, password);
       }
-      // If successful, send them to the home page or dashboard!
       navigate('/');
     } catch (err) {
-      // Axios sends backend errors in err.response.data
       setError(err.response?.data?.message || 'Something went wrong. Try again.');
     }
   };
@@ -32,7 +30,6 @@ const Auth = () => {
   return (
     <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px', textAlign: 'center' }}>
       <h2>{isLogin ? 'Welcome Back' : 'Create an Account'}</h2>
-      
       {error && <p style={{ color: 'red' }}>{error}</p>}
       
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
