@@ -13,17 +13,17 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-// This array allows both your local React server and your future live site to connect
 app.use(cors({
   origin: [
-    process.env.FRONTEND_URL, // For your future deployed React app
-    "http://localhost:5173"   // For local development testing
+    process.env.FRONTEND_URL, 
+    "http://localhost:5173"
   ],
-  methods: ["GET", "POST", "PUT", "DELETE"], // Added PUT/DELETE in case you add edit/delete features
-  credentials: true, // Crucial for cookie-parser and authentication
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true, // Required for cross-origin cookies
 }));
 
 app.use(express.json());
+// Configure cookie-parser for cross-site cookie handling
 app.use(cookieParser());
 
 // Routes
@@ -32,11 +32,9 @@ app.use('/api/auth', authRoutes);
 
 const startServer = async () => {
   try {
-    // 1. Connect to both MongoDB and Redis before starting the server
     await connectDB();
     await connectRedis();
 
-    // 2. Start Express Server
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
