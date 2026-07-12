@@ -1,7 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import connectDB from "./config/db.js"; 
-import { connectRedis } from "./config/redis.js"; // <-- Redis connection imported
+import { connectRedis } from "./config/redis.js"; 
 import cors from "cors";
 import urlRoutes from "./routes/url.js";
 import cookieParser from 'cookie-parser';
@@ -13,11 +13,16 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
+// This array allows both your local React server and your future live site to connect
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
-  methods: ["GET", "POST"],
-  credentials: true, 
+  origin: [
+    process.env.FRONTEND_URL, // For your future deployed React app
+    "http://localhost:5173"   // For local development testing
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"], // Added PUT/DELETE in case you add edit/delete features
+  credentials: true, // Crucial for cookie-parser and authentication
 }));
+
 app.use(express.json());
 app.use(cookieParser());
 
