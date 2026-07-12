@@ -6,8 +6,9 @@ export const AuthContext = createContext();
 
 // 2. Set Axios Defaults (CRITICAL FOR COOKIES)
 axios.defaults.withCredentials = true;
-// Update this if your backend is running on a different port!
-const API_URL = 'http://localhost:5000/api/auth';
+
+// Use the environment variable from .env instead of hardcoding localhost
+const API_URL = `${import.meta.env.VITE_BACKEND_URL}/api/auth`;
 
 // 3. Create the Provider Component
 export const AuthProvider = ({ children }) => {
