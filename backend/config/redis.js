@@ -1,18 +1,24 @@
 import { createClient } from "redis";
 
-// When in production, construct the full Upstash URL
-const getRedisUrl = () => {
-  if (process.env.NODE_ENV === "production") {
-    // This creates exactly: rediss://default:YOUR_PASSWORD@YOUR_HOST:6379
-    return `rediss://default:${process.env.REDIS_PASSWORD}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}`;
-  }
-  // Fallback for local development
-  return "redis://127.0.0.1:6379"; 
-};
+// Determine if we are in production based on the environment variable
+const isProduction = process.env.NODE_ENV === "production";
 
-export const redisClient = createClient({
-  url: getRedisUrl()
-});
+// Create the client using the much safer Object configuration
+export const redisClient = createClient(
+  isProduction
+    ? {
+        password: process.env.REDIS_PASSWORD,
+        socket: {
+          host: process.env.REDIS_HOST,
+          port: process.env.REDIS_PORT || 6379,
+          tls: true, // Strictly enforce TLS for Upstash
+          rejectUnauthorized: false // Helps prevent SSL certificate rejections in cloud environments
+        }
+      }
+    : {
+        url: "redis://127.0.0.1:6379", // Fallback for local development
+      }
+);
 
 redisClient.on("error", (err) => console.error("Redis Client Error", err));
 
@@ -20,9 +26,7 @@ export const connectRedis = async () => {
   try {
     await redisClient.connect();
     console.log(
-      `CONNECTED TO REDIS: ${
-        process.env.NODE_ENV === "production" ? "Upstash Cloud" : "Localhost"
-      }`
+      `CONNECTED TO REDIS: ${isProduction ? "Upstash Cloud" : "Localhost"}`
     );
   } catch (error) {
     console.error("Failed to connect to Redis", error);
