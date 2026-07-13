@@ -21,12 +21,10 @@ function Home() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate(); 
 
-  // HYBRID LOGIC: Fetch from DB if logged in, else use LocalStorage
   useEffect(() => {
     const fetchHistory = async () => {
       if (user) {
         try {
-          // --- THE SECURE COOKIE FIX ---
           const config = {
             withCredentials: true
           };
@@ -49,7 +47,6 @@ function Home() {
     setError(null); 
 
     try {
-      // --- THE SECURE COOKIE FIX ---
       const config = user ? {
         withCredentials: true
       } : {};
@@ -71,7 +68,6 @@ function Home() {
       const qr = await QRCodeGenerator.toDataURL(shortUrl);
       setQrImage(qr);
 
-      // HYBRID LOGIC: Update State
       const newHistoryItem = { originalUrl: originalUrl || url, shortUrl, shortId };
       
       if (user) {
@@ -103,7 +99,6 @@ function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center py-10 px-6 gap-6 bg-base-200">
       
-      {/* USER DASHBOARD HEADER */}
       <div className="w-full max-w-3xl flex justify-between items-center bg-base-100 p-4 rounded-xl shadow-sm mb-4">
         <div>
           <span className="text-gray-500 font-medium">Status: </span>
@@ -123,7 +118,6 @@ function Home() {
 
       <h1 className="text-4xl font-bold mb-4 text-center">URL SHORTENER</h1>
       
-      {/* MAIN INPUT SECTION */}
       <div className="flex flex-col gap-3 w-full max-w-3xl bg-base-100 p-6 rounded-xl shadow-lg">
         <input 
           type="text" 

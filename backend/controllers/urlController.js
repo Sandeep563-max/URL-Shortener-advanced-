@@ -39,13 +39,19 @@ export const createShortUrl = async (req, res) => {
 
     const shortId = nanoid(7);
     const finalIdentifier = customAlias ? customAlias : shortId;
-    const shortUrl = `${process.env.BASE_URL || "http://localhost:5000"}/${finalIdentifier}`;
+    
+    // --- THE URL GENERATION FIX ---
+    // Automatically use the live Render URL in production, or localhost for local dev
+    const baseUrl = process.env.NODE_ENV === "production" 
+      ? "https://url-shortener-advanced.onrender.com" 
+      : "http://localhost:5000";
+      
+    const shortUrl = `${baseUrl}/${finalIdentifier}`;
 
     const url = await Url.create({ 
       originalUrl, 
       shortId, 
       shortUrl,
-      // --- THE MONGO SPARSE INDEX FIX ---
       customAlias: customAlias || undefined, 
       user: userId
     });
@@ -65,7 +71,6 @@ export const redirectToOriginalUrl = async (req, res) => {
     const cachedData = await redisClient.get(shortId);
     if (cachedData) {
       try {
-        // --- THE REDIS JSON CACHING FIX ---
         const parsedCache = JSON.parse(cachedData);
         analyticsQueue.add("trackClick", { shortId: parsedCache.trueId }).catch(err => console.error("Queue Error:", err));
         return res.redirect(parsedCache.originalUrl);
