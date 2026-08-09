@@ -3,11 +3,25 @@ import { nanoid } from "nanoid";
 import { redisClient } from "../config/redis.js";
 import { Queue } from "bullmq";
 
-const analyticsQueue = new Queue("analyticsQueue", {
-  connection: { 
+// Automatically parse the cloud Redis URL in production, or fallback to local Docker
+const getRedisConnection = () => {
+  if (process.env.REDIS_URL) {
+    const url = new URL(process.env.REDIS_URL);
+    return {
+      host: url.hostname,
+      port: Number(url.port),
+      password: url.password || undefined,
+      tls: url.protocol === "rediss:" ? { rejectUnauthorized: false } : undefined
+    };
+  }
+  return { 
     host: process.env.REDIS_HOST || "127.0.0.1", 
     port: 6379 
-  }
+  };
+};
+
+const analyticsQueue = new Queue("analyticsQueue", {
+  connection: getRedisConnection()
 });
 
 // POST: Generate Short URL
@@ -40,7 +54,6 @@ export const createShortUrl = async (req, res) => {
     const shortId = nanoid(7);
     const finalIdentifier = customAlias ? customAlias : shortId;
     
-    // --- THE URL GENERATION FIX ---
     // Automatically use the live Render URL in production, or localhost for local dev
     const baseUrl = process.env.NODE_ENV === "production" 
       ? "https://url-shortener-advanced.onrender.com" 

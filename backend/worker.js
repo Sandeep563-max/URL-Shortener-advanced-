@@ -10,6 +10,23 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("Worker connected to MongoDB"))
   .catch((err) => console.error("Worker MongoDB error", err));
 
+// Must mirror the same Redis connection logic as the Queue
+const getRedisConnection = () => {
+  if (process.env.REDIS_URL) {
+    const url = new URL(process.env.REDIS_URL);
+    return {
+      host: url.hostname,
+      port: Number(url.port),
+      password: url.password || undefined,
+      tls: url.protocol === "rediss:" ? { rejectUnauthorized: false } : undefined
+    };
+  }
+  return { 
+    host: process.env.REDIS_HOST || "127.0.0.1", 
+    port: 6379 
+  };
+};
+
 const analyticsWorker = new Worker("analyticsQueue", async (job) => {
   const { shortId } = job.data;
   
@@ -24,10 +41,7 @@ const analyticsWorker = new Worker("analyticsQueue", async (job) => {
     throw error; // Throwing the error tells BullMQ to retry the job later
   }
 }, {
-  connection: { 
-    host: process.env.REDIS_HOST || "127.0.0.1", 
-    port: 6379 
-  }
+  connection: getRedisConnection()
 });
 
 analyticsWorker.on("ready", () => {
@@ -35,5 +49,5 @@ analyticsWorker.on("ready", () => {
 });
 
 analyticsWorker.on("failed", (job, err) => {
-  console.error(`Job ${job.id} failed with error ${err.message}`);
+  console.error(`Job ${job?.id} failed with error ${err.message}`);
 });
