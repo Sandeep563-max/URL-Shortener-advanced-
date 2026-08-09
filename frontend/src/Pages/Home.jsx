@@ -1,4 +1,5 @@
-import { useState, useEffect, useContext } from "react";
+
+import { useState, useEffect, useContext, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import QRCode from "react-qr-code";
@@ -21,35 +22,31 @@ function Home() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate(); 
 
-  useEffect(() => {
-    const fetchHistory = async () => {
-      if (user) {
-        try {
-          const config = {
-            withCredentials: true
-          };
-          
-          const res = await axios.get(`${API_BASE_URL}/my-links`, config);
-          setHistory(res.data);
-        } catch (error) {
-          console.error("Failed to fetch user links", error);
-        }
-      } else {
-        const savedHistory = JSON.parse(localStorage.getItem("guestUrlHistory") || "[]");
-        setHistory(savedHistory);
+  const fetchHistory = useCallback(async () => {
+    if (user) {
+      try {
+        const config = { withCredentials: true };
+        const res = await axios.get(`${API_BASE_URL}/my-links`, config);
+        setHistory(res.data);
+      } catch (error) {
+        console.error("Failed to fetch user links", error);
       }
-    };
+    } else {
+      const savedHistory = JSON.parse(localStorage.getItem("guestUrlHistory") || "[]");
+      setHistory(savedHistory);
+    }
+  }, [user]);
+
+  useEffect(() => {
     fetchHistory();
-  }, [user]); 
+  }, [fetchHistory]); 
 
   const handleShorten = async () => {
     if (!url) return;
     setError(null); 
 
     try {
-      const config = user ? {
-        withCredentials: true
-      } : {};
+      const config = user ? { withCredentials: true } : {};
 
       const res = await axios.post(`${API_BASE_URL}/shorten`, { 
         originalUrl: url,
@@ -68,18 +65,8 @@ function Home() {
       const qr = await QRCodeGenerator.toDataURL(shortUrl);
       setQrImage(qr);
 
-      const newHistoryItem = { originalUrl: originalUrl || url, shortUrl, shortId };
-      
-      if (user) {
-        setHistory(prev => [newHistoryItem, ...prev]);
-      } else {
-        const updatedHistory = [
-          newHistoryItem, 
-          ...history.filter(item => item.shortId !== shortId) 
-        ].slice(0, 5); 
-        setHistory(updatedHistory);
-        localStorage.setItem("guestUrlHistory", JSON.stringify(updatedHistory));
-      }
+      // Re-fetch or update history to include the new link with proper fields
+      await fetchHistory();
     
     } catch (err) {
       if (err.response && err.response.data && err.response.data.error) {
@@ -88,13 +75,13 @@ function Home() {
         setError("Something went wrong. Please try again.");
       }
     }
-  }
+  };
 
   const handleCopy = (linkToCopy) => {
     navigator.clipboard.writeText(linkToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center py-10 px-6 gap-6 bg-base-200">
@@ -179,7 +166,14 @@ function Home() {
 
       {history.length > 0 && (
         <div className="w-full max-w-3xl mt-8">
-          <h2 className="text-2xl font-bold mb-4">{user ? "Your Permanent History" : "Recent Links (Guest)"}</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold">{user ? "Your Permanent History" : "Recent Links (Guest)"}</h2>
+            {user && (
+              <button onClick={fetchHistory} className="btn btn-sm btn-outline">
+                Refresh Stats
+              </button>
+            )}
+          </div>
           <div className="flex flex-col gap-3">
             {history.map((item, index) => (
               <div key={index} className="bg-base-100 p-4 rounded-lg shadow flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -187,9 +181,14 @@ function Home() {
                   <p className="text-sm text-gray-500 truncate">{item.originalUrl}</p>
                   <a href={item.shortUrl} target="_blank" className="link link-primary font-medium" rel="noreferrer">{item.shortUrl}</a>
                 </div>
-                <button onClick={() => handleCopy(item.shortUrl)} className="btn btn-sm btn-ghost border border-base-300">
-                  Copy
-                </button>
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                  <span className="badge badge-primary badge-outline font-semibold">
+                    Clicks: {item.clicks ?? 0}
+                  </span>
+                  <button onClick={() => handleCopy(item.shortUrl)} className="btn btn-sm btn-ghost border border-base-300">
+                    Copy
+                  </button>
+                </div>
               </div>
             ))}
           </div>
