@@ -12,17 +12,24 @@ mongoose.connect(process.env.MONGO_URI)
 
 // Must mirror the same Redis connection logic as the Queue
 const getRedisConnection = () => {
-  if (process.env.REDIS_URL) {
-    const url = new URL(process.env.REDIS_URL);
+  // If individual Render/Docker variables are provided:
+  if (process.env.REDIS_HOST) {
     return {
-      host: url.hostname,
-      port: Number(url.port),
-      password: url.password || undefined,
-      tls: url.protocol === "rediss:" ? { rejectUnauthorized: false } : undefined
+      host: process.env.REDIS_HOST,
+      port: Number(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD || undefined,
+      tls: process.env.REDIS_PASSWORD ? { rejectUnauthorized: false } : undefined
+    };
+  }
+  // Fallback for full REDIS_URL strings if ever used
+  if (process.env.REDIS_URL) {
+    return {
+      url: process.env.REDIS_URL,
+      tls: { rejectUnauthorized: false }
     };
   }
   return { 
-    host: process.env.REDIS_HOST || "127.0.0.1", 
+    host: "127.0.0.1", 
     port: 6379 
   };
 };
