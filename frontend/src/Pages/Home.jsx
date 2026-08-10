@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useContext, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -14,6 +13,7 @@ function Home() {
   const [error, setError] = useState(null); 
   
   const [shortUrl, setShortUrl] = useState("");
+  const [activeShortId, setActiveShortId] = useState(""); // Tracks the active link for refreshing
   const [copied, setCopied] = useState(false);
   const [qrImage, setQrImage] = useState("");
   const [analytics, setAnalytics] = useState(null);
@@ -37,8 +37,29 @@ function Home() {
     }
   }, [user]);
 
+  // RESTORE STATE ON REFRESH
   useEffect(() => {
     fetchHistory();
+
+    const restoreActiveLink = async () => {
+      const savedId = sessionStorage.getItem("activeShortId");
+      const savedUrl = sessionStorage.getItem("activeShortUrl");
+      
+      if (savedId && savedUrl) {
+        setShortUrl(savedUrl);
+        setActiveShortId(savedId);
+        try {
+          const stats = await axios.get(`${API_BASE_URL}/analytics/${savedId}`);
+          setAnalytics(stats.data);
+          const qr = await QRCodeGenerator.toDataURL(savedUrl);
+          setQrImage(qr);
+        } catch (err) {
+          console.error("Failed to restore analytics", err);
+        }
+      }
+    };
+    
+    restoreActiveLink();
   }, [fetchHistory]); 
 
   const handleShorten = async () => {
@@ -56,8 +77,13 @@ function Home() {
       const { shortUrl, shortId, originalUrl } = res.data; 
       
       setShortUrl(shortUrl);
+      setActiveShortId(shortId);
       setCopied(false);
       setCustomAlias(""); 
+
+      // Save to session storage so it survives a page refresh
+      sessionStorage.setItem("activeShortId", shortId);
+      sessionStorage.setItem("activeShortUrl", shortUrl);
 
       const stats = await axios.get(`${API_BASE_URL}/analytics/${shortId}`);
       setAnalytics(stats.data);
@@ -65,7 +91,6 @@ function Home() {
       const qr = await QRCodeGenerator.toDataURL(shortUrl);
       setQrImage(qr);
 
-      // Re-fetch or update history to include the new link with proper fields
       await fetchHistory();
     
     } catch (err) {
@@ -75,6 +100,28 @@ function Home() {
         setError("Something went wrong. Please try again.");
       }
     }
+  };
+
+  // NEW: Function to just refresh the top box stats
+  const handleRefreshActiveStats = async () => {
+    if (!activeShortId) return;
+    try {
+      const stats = await axios.get(`${API_BASE_URL}/analytics/${activeShortId}`);
+      setAnalytics(stats.data);
+      await fetchHistory(); // Also sync the bottom history list
+    } catch (err) {
+      console.error("Failed to refresh stats", err);
+    }
+  };
+
+  const handleClearActive = () => {
+    // Allows user to close the top box
+    setShortUrl("");
+    setActiveShortId("");
+    setAnalytics(null);
+    setQrImage("");
+    sessionStorage.removeItem("activeShortId");
+    sessionStorage.removeItem("activeShortUrl");
   };
 
   const handleCopy = (linkToCopy) => {
@@ -134,9 +181,19 @@ function Home() {
       </div>
 
       {shortUrl && (
-        <div className="flex flex-col items-center max-w-3xl w-full bg-base-100 p-6 rounded-xl shadow-lg">
+        <div className="flex flex-col items-center max-w-3xl w-full bg-base-100 p-6 rounded-xl shadow-lg relative">
+            <button onClick={handleClearActive} className="btn btn-sm btn-circle btn-ghost absolute top-2 right-2">
+              ✕
+            </button>
+            
             {analytics && (
-                <div className="stats shadow mb-6 w-full text-center border border-base-300">
+                <div className="stats shadow mb-6 w-full text-center border border-base-300 relative mt-4">
+                    <button 
+                      onClick={handleRefreshActiveStats} 
+                      className="btn btn-xs btn-outline absolute top-2 right-2"
+                    >
+                      ↻ Refresh
+                    </button>
                     <div className="stat">
                         <div className="stat-title">Total Clicks</div>
                         <div className="stat-value text-primary">{analytics.clicks}</div>
@@ -170,7 +227,7 @@ function Home() {
             <h2 className="text-2xl font-bold">{user ? "Your Permanent History" : "Recent Links (Guest)"}</h2>
             {user && (
               <button onClick={fetchHistory} className="btn btn-sm btn-outline">
-                Refresh Stats
+                Refresh All Stats
               </button>
             )}
           </div>

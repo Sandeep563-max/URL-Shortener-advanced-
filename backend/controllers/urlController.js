@@ -83,6 +83,7 @@ export const createShortUrl = async (req, res) => {
 };
 
 // GET: Redirect with Redis caching and async analytics
+// GET: Redirect with Redis caching and async analytics
 export const redirectToOriginalUrl = async (req, res) => {
   try {
     const { shortId } = req.params; 
@@ -90,6 +91,7 @@ export const redirectToOriginalUrl = async (req, res) => {
     // 1. Cache Check
     const cachedData = await redisClient.get(shortId);
     if (cachedData) {
+      
       try {
         const parsedCache = JSON.parse(cachedData);
         analyticsQueue.add("trackClick", { shortId: parsedCache.trueId }).catch(err => console.error("Queue Error:", err));
@@ -101,6 +103,8 @@ export const redirectToOriginalUrl = async (req, res) => {
     }
 
     // 2. DB Fallback
+     
+    
     const url = await Url.findOne({ 
       $or: [ { shortId: shortId }, { customAlias: shortId } ] 
     });
@@ -112,6 +116,7 @@ export const redirectToOriginalUrl = async (req, res) => {
       originalUrl: url.originalUrl, 
       trueId: url.shortId 
     });
+    
     
     await redisClient.set(shortId, cachePayload, { EX: 86400 });
     
