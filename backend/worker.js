@@ -27,6 +27,7 @@ const getRedisConnection = () => {
       url: process.env.REDIS_URL,
       tls: { rejectUnauthorized: false }
     };
+    
   }
   return { 
     host: "127.0.0.1", 

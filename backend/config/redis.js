@@ -16,7 +16,8 @@ export const redisClient = createClient(
         }
       }
     : {
-        url: "redis://127.0.0.1:6379", // Fallback for local development
+        // Automatically grab Docker host if it exists, otherwise fallback to standard localhost
+        url: `redis://${process.env.REDIS_HOST || '127.0.0.1'}:6379`, 
       }
 );
 
@@ -26,7 +27,7 @@ export const connectRedis = async () => {
   try {
     await redisClient.connect();
     console.log(
-      `CONNECTED TO REDIS: ${isProduction ? "Upstash Cloud" : "Localhost"}`
+      `CONNECTED TO REDIS: ${isProduction ? "Upstash Cloud" : (process.env.REDIS_HOST ? "Docker Container" : "Localhost")}`
     );
   } catch (error) {
     console.error("Failed to connect to Redis", error);
