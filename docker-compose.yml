@@ -7,7 +7,7 @@ services:
     ports:
       - "6379:6379"
 
-  # 2. The Main Backend API (Now acts as a Modular Monolith)
+  # 2. The Main Backend API
   backend:
     build: ./backend
     ports:
@@ -17,6 +17,17 @@ services:
     environment:
       - REDIS_HOST=redis # This tells Node to talk to the container above
       - BASE_URL=http://localhost:5000
+    depends_on:
+      - redis
+
+  # 3. The Asynchronous BullMQ Analytics Worker
+  worker:
+    build: ./backend
+    command: node worker.js
+    env_file:
+      - ./backend/.env
+    environment:
+      - REDIS_HOST=redis
     depends_on:
       - redis
 

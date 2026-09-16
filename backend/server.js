@@ -6,7 +6,6 @@ import cors from "cors";
 import urlRoutes from "./routes/url.js";
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/authRoutes.js';
-import "./worker.js";
 
 dotenv.config();
 

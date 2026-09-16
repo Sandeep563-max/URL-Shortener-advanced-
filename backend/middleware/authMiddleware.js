@@ -15,6 +15,9 @@ export const protect = async (req, res, next) => {
       // 3. Find the user in the database based on the ID inside the token
       // We use .select('-password') to ensure we DON'T attach the hashed password to the request
       req.user = await User.findById(decoded.id).select('-password');
+      if (!req.user) {
+        return res.status(401).json({ message: 'Not authorized, user no longer exists' });
+      }
 
       // 4. Pass the baton to the next function (the actual route controller)
       next();
