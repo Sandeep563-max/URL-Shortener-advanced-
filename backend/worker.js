@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import Url from "./models/Url.js";
+import http from "http";
 
 dotenv.config();
 
@@ -90,4 +91,33 @@ analyticsWorker.on("failed", (job, error) => {
   console.error(
     `Job ${job?.id} failed with error ${error.message}`
   );
+});
+
+// --------------------------------------------------
+// Lightweight HTTP server for Render health checks
+// --------------------------------------------------
+
+// Use a fixed internal port so the worker does not inherit
+// PORT=5000 from the shared backend .env file.
+const PORT = 10000;
+
+const healthServer = http.createServer((req, res) => {
+  if (req.url === "/" || req.url === "/health") {
+    res.writeHead(200, {
+      "Content-Type": "text/plain",
+    });
+
+    res.end("SwiftLink worker is running");
+    return;
+  }
+
+  res.writeHead(404, {
+    "Content-Type": "text/plain",
+  });
+
+  res.end("Not Found");
+});
+
+healthServer.listen(PORT, () => {
+  console.log(`Worker health server running on port ${PORT}`);
 });
