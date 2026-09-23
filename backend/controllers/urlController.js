@@ -158,6 +158,9 @@ export const redirectToOriginalUrl = async (req, res) => {
     try {
       const parsedCache = JSON.parse(cachedData);
 
+      // Wake up the separate worker service.
+      req.app.locals.wakeWorker?.();
+
       // Queue click analytics asynchronously.
       analyticsQueue
         .add(
@@ -178,6 +181,10 @@ export const redirectToOriginalUrl = async (req, res) => {
       return res.redirect(parsedCache.originalUrl);
     } catch (error) {
       // Backward compatibility in case old cache contains only a URL.
+
+      // Wake up the separate worker service.
+      req.app.locals.wakeWorker?.();
+
       analyticsQueue
         .add(
           "trackClick",
@@ -229,6 +236,9 @@ export const redirectToOriginalUrl = async (req, res) => {
         redisSetErr.message
       );
     }
+
+    // Wake up the separate worker service.
+    req.app.locals.wakeWorker?.();
 
     // 5. Queue analytics asynchronously.
     analyticsQueue

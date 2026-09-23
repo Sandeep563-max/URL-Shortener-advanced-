@@ -110,7 +110,6 @@ const healthServer = http.createServer((req, res) => {
     res.end("SwiftLink worker is running");
     return;
   }
-
   res.writeHead(404, {
     "Content-Type": "text/plain",
   });
